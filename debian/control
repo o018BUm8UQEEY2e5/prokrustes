@@ -1,0 +1,30 @@
+Source: prokrustes
+Section: utils
+Priority: optional
+Maintainer: yvfu <yvfu@tutamail.com>
+Build-Depends: debhelper-compat (= 14),
+               dh-python,
+               dh-sequence-single-binary,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-build,
+               python3-setuptools,
+               python3-wheel
+Standards-Version: 4.7.4
+Rules-Requires-Root: no
+Homepage: https://github.com/o018BUm8UQEEY2e5/prokrustes
+
+Package: prokrustes
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}
+Recommends: llama.cpp-tools
+Description: fill text templates with grammar-constrained model output
+ prokrustes fills a text template whose placeholders each carry a Python
+ regular expression. Each pattern is compiled to a GBNF grammar that is
+ handed to a llama-server, so every generated value is guaranteed to match
+ its pattern. Output is parsed back against the template and re-checked,
+ and only the filled document is printed.
+ .
+ Chat mode (via the server's /apply-template endpoint) is on by default,
+ servers on Unix domain sockets are supported, and an optional <think>
+ reasoning block lets the model reason before emitting the document.

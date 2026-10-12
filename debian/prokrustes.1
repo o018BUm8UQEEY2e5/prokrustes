@@ -1,0 +1,202 @@
+.TH PROKRUSTES 1 "October 2026" "prokrustes 0.1.0" "User Commands"
+.SH NAME
+prokrustes \- fill text templates with grammar-constrained model output
+.SH SYNOPSIS
+.B prokrustes
+[\fIOPTIONS\fR]
+\fIPATH\fR
+.SH DESCRIPTION
+.B prokrustes
+fills a text template whose placeholders each carry a Python regular
+expression. Each pattern is compiled to a GBNF grammar that is handed to a
+.BR llama-server (1),
+so every generated value is guaranteed to match its pattern. Output is parsed
+back against the template and re-checked, and only the filled document is
+printed to standard output.
+.PP
+Chat mode is on by default: the instruction and template are sent to the
+server's
+.I /apply-template
+endpoint, then the rendered chat prompt is posted to
+.I /completion
+with the same document grammar. The chat wrapper stays in the prompt; it is
+not added to the grammar.
+.SH OPTIONS
+.TP
+\fBPATH\fR
+Template file, or
+.B \-
+for standard input.
+.TP
+.BR \-\-url " " \fIURL\fR
+llama-server base URL (default:
+.IR http://127.0.0.1:8080 ).
+.TP
+.BR \-\-model " " \fINAME\fR
+Model name as listed by the server's
+.I /v1/models\fR;
+sent on
+.I /apply-template
+(which current servers require) and
+.IR /completion .
+Defaults to the first model the server reports.
+.TP
+.BR \-\-unix\-socket " " \fIPATH\fR
+Connect over a Unix domain socket instead of TCP, curl
+.I \-\-unix-socket
+style. The
+.B \-\-url
+host is still sent as the HTTP
+.I Host
+header; only
+.I http://
+URLs are supported.
+.TP
+.BR \-\-field " " \fINAME\fR=\fIVALUE\fR
+Pin a named placeholder. The value is validated against the pattern,
+substituted literally, and removed from the grammar. May be given multiple
+times.
+.TP
+.BR \-\-seed " " \fISEED\fR
+RNG seed; \-1 for a random seed.
+.TP
+.BR \-\-temperature " " \fITEMPERATURE\fR
+Sampling temperature.
+.TP
+.BR \-\-top\-k " " \fITOP_K\fR
+Top-k sampling.
+.TP
+.BR \-\-top\-p " " \fITOP_P\fR
+Top-p sampling.
+.TP
+.BR \-\-dynatemp " " \fIDYNATEMP\fR
+Dynamic temperature range.
+.TP
+.BR \-\-n\-predict " " \fIN_PREDICT\fR
+Maximum tokens to generate; \-1 (the default) for no limit. The grammar
+still ends generation once the document is complete.
+.TP
+.BR \-\-stop " " \fISTOP\fR
+Extra stop string. May be given multiple times.
+.TP
+.BR \-\-timeout " " \fITIMEOUT\fR
+HTTP timeout in seconds.
+.TP
+.B \-\-no\-prefill
+Do not seed the prompt with the template's leading literal.
+.TP
+.BR \-\-template\-in\-prompt ", " \-\-no\-template\-in\-prompt
+Include the template text in the prompt (default: enabled).
+.B \-\-no\-template\-in\-prompt
+sends only the instructions and placeholder patterns, which saves input
+tokens on large templates at some cost to value quality.
+.TP
+.B \-\-no\-prompt
+Send no instructional prompt at all: an empty user message in chat mode, or
+just the prefill seed in raw mode. The grammar still constrains the output.
+Conflicts with
+.BR \-\-template\-in\-prompt ,
+which is meaningless without a prompt.
+.TP
+.BR \-\-instructions " " \fIPATH\fR
+Read custom instruction lines from
+.IR PATH ,
+replacing the built-in preamble; the placeholder list and template block
+are still appended. Conflicts with
+.BR \-\-no\-prompt .
+.TP
+.B \-\-think
+Let the model reason inside
+.I <think>...</think>
+before the document. Only the document after
+.I </think>
+is constrained by the grammar, parsed, and printed; the thinking is printed
+to standard error. Thinking shares the
+.B \-\-n\-predict
+budget and may not contain
+.IR </think> .
+.TP
+.BR \-\-chat ", " \-\-no\-chat
+Send the prompt through the server's chat template before
+.I /completion
+(default: enabled).
+.B \-\-no\-chat
+uses raw
+.I /completion
+without the server's chat template.
+.TP
+.B \-\-dry\-run
+Print the prompt and grammar, then exit. Needs no server.
+.TP
+.B \-\-explain
+Print each placeholder's pattern and grammar rule.
+.TP
+.BR \-\-grammar\-out " " \fIPATH\fR
+Also write the generated GBNF grammar to
+.IR PATH .
+.TP
+.B \-\-strict
+Exit non-zero if any value fails validation.
+.SH TEMPLATE SYNTAX
+Placeholders carry a Python regular expression:
+.PP
+.RS
+.nf
+{name:/pattern/flags}    named: pinnable, and repeating the name
+                         means the same value in both places
+{/pattern/flags}         unnamed: use when you never refer to the value
+.fi
+.RE
+.PP
+Supported flags are
+.B i
+(ignore case) and
+.B s
+(dot also matches newline).
+.B {{
+and
+.B }}
+are literal braces, exactly as in an f-string. A literal
+.B /
+inside a pattern must be escaped as
+.BR \e/ .
+.PP
+A regular expression cannot express a hard numeric bound
+.RB ( /[1-9][0-9]{0,4}/
+also admits
+.IR 99999 );
+for a bound, paste in a generated alternation such as the output of
+.B "rgxg range 1 65535".
+Patterns cannot express calendar validity either. Backreferences,
+lookahead, lookbehind, word boundaries, inline flags, atomic groups, and
+POSIX classes are rejected at parse time.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A value failed validation and
+.B \-\-strict
+was given, or the output diverged from the template under
+.BR \-\-strict .
+.TP
+.B 2
+Usage error or unreadable input (template, instructions file, or server
+error), via
+.IR SystemExit .
+.SH EXAMPLES
+.PP
+.RS
+.nf
+prokrustes examples/nginx.tpl
+prokrustes \- < mytemplate.tpl
+prokrustes examples/nginx.tpl \-\-dry\-run
+prokrustes examples/nginx.tpl \-\-field port=8443
+prokrustes examples/nginx.tpl \-\-unix\-socket /run/llama\-server/llama.sock
+.fi
+.RE
+.SH SEE ALSO
+.BR llama-server (1)
+.SH AUTHOR
+Written by yvfu <yvfu@tutamail.com>. Released under AGPL-3.0-or-later.
