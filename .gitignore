@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+.venv/
+venv/
+
+# Debian packaging artefacts
+*.deb
+*.changes
+*.buildinfo
+*.dsc
+debian/files
+debian/*.substvars
+debian/*.log
+debian/.debhelper/
+debian/prokrustes/

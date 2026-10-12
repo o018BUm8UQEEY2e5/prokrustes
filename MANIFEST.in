@@ -1,0 +1,6 @@
+include LICENSE
+include README.md
+recursive-include examples *.tpl
+recursive-include tests *.py
+global-exclude __pycache__/*
+global-exclude *.py[cod]
